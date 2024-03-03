@@ -15,9 +15,7 @@ ENV INSTANCE_NAME=searxng \
     MORTY_KEY= \
     MORTY_URL= \
     SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml \
-    UWSGI_SETTINGS_PATH=/etc/searxng/uwsgi.ini \
-    UWSGI_WORKERS=%k \
-    UWSGI_THREADS=4
+    UWSGI_SETTINGS_PATH=/etc/searxng/uwsgi.ini
 
 WORKDIR /usr/local/searxng
 

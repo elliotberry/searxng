@@ -1,0 +1,45 @@
+version: '3.7'
+
+services:
+  redis:
+    container_name: redis-for-seaerxng
+    image: redis:7.2.4-bookworm
+    restart: always
+    command: redis-server --save "" --appendonly "no"
+    tmpfs:
+      - /var/lib/redis
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
+  searxng:
+    container_name: searxngextreme420
+    image: searxextreme420
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    network_mode: "host"
+    ports:
+     - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=https://searx.daddy.cat
+      - REDIS_URL=redis://redis:6379/0
+      - UWSGI_WORKERS=8
+      - UWSGI_THREADS=4
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "5"
