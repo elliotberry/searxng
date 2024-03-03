@@ -29,7 +29,7 @@ services:
     volumes:
       - ./searxng-data:/etc/searxng:rw
     environment:
-      - SEARXNG_BASE_URL=http://localhost:8080
+      - SEARXNG_BASE_URL=https://searx.daddy.cat
       - REDIS_URL=redis://redis:6379/0
       - UWSGI_WORKERS=8
       - UWSGI_THREADS=4
