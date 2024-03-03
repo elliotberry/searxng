@@ -4,7 +4,7 @@ services:
   redis:
     container_name: redis-for-seaerxng
     image: redis:7.2.4-bookworm
-    restart: always
+    restart: unless-stopped
     command: redis-server --save "" --appendonly "no"
     tmpfs:
       - /var/lib/redis
@@ -14,21 +14,22 @@ services:
       - SETGID
       - SETUID
       - DAC_OVERRIDE
+    volumes:
+      - redis-cache:/data
 
   searxng:
-    container_name: searxngextreme420
-    image: searxextreme420
+    container_name: searxng-for-cats
+    image: searxng-for-cats
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile2
     restart: unless-stopped
-    network_mode: "host"
     ports:
-     - "8080:8080"
+     - "8888:8080"
     volumes:
-      - ./searxng:/etc/searxng:rw
+      - ./searxng-data:/etc/searxng:rw
     environment:
-      - SEARXNG_BASE_URL=https://searx.daddy.cat
+      - SEARXNG_BASE_URL=http://localhost:8080
       - REDIS_URL=redis://redis:6379/0
       - UWSGI_WORKERS=8
       - UWSGI_THREADS=4
@@ -43,3 +44,6 @@ services:
       options:
         max-size: "1m"
         max-file: "5"
+volumes:
+  redis-cache:
+  searxng-data:
