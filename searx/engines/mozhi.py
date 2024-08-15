@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
 """Mozhi (alternative frontend for popular translation engines)"""
 
 import random
 import re
 from urllib.parse import urlencode
+from flask_babel import gettext
 
 about = {
     "website": 'https://codeberg.org/aryak/mozhi',
@@ -16,7 +16,7 @@ about = {
 }
 
 engine_type = 'online_dictionary'
-categories = ['general']
+categories = ['general', 'translate']
 
 base_url = "https://mozhi.aryak.me"
 mozhi_engine = "google"
@@ -44,12 +44,17 @@ def response(resp):
 
     if translation['word_choices']:
         for word in translation['word_choices']:
-            infobox += f"<dl><dt>{word['word']}</dt>"
+            infobox += f"<dl><dt>{word['word']}: {word['definition']}</dt>"
 
-            for example in word['examples_target']:
-                infobox += f"<dd>{re.sub(r'<|>', '', example)}</dd>"
+            if word['examples_target']:
+                for example in word['examples_target']:
+                    infobox += f"<dd>{re.sub(r'<|>', '', example)}</dd>"
+                    infobox += f"<dd>{re.sub(r'<|>', '', example)}</dd>"
 
             infobox += "</dl>"
+
+    if translation['source_synonyms']:
+        infobox += f"<dl><dt>{gettext('Synonyms')}: {', '.join(translation['source_synonyms'])}</dt></dl>"
 
     result = {
         'infobox': translation['translated-text'],

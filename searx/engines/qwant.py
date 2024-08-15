@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
 """This engine uses the Qwant API (https://api.qwant.com/v3) to implement Qwant
 -Web, -News, -Images and -Videos.  The API is undocumented but can be reverse
 engineered by reading the network log of https://www.qwant.com/ queries.
@@ -243,15 +242,15 @@ def parse_web_api(resp):
                 if pub_date is not None:
                     pub_date = datetime.fromtimestamp(pub_date)
                 news_media = item.get('media', [])
-                img_src = None
+                thumbnail = None
                 if news_media:
-                    img_src = news_media[0].get('pict', {}).get('url', None)
+                    thumbnail = news_media[0].get('pict', {}).get('url', None)
                 results.append(
                     {
                         'title': title,
                         'url': res_url,
                         'publishedDate': pub_date,
-                        'img_src': img_src,
+                        'thumbnail': thumbnail,
                     }
                 )
 
@@ -313,13 +312,12 @@ def fetch_traits(engine_traits: EngineTraits):
     # pylint: disable=import-outside-toplevel
     from searx import network
     from searx.locales import region_tag
+    from searx.utils import extr
 
     resp = network.get(about['website'])
-    text = resp.text
-    text = text[text.find('INITIAL_PROPS') :]
-    text = text[text.find('{') : text.find('</script>')]
+    json_string = extr(resp.text, 'INITIAL_PROPS = ', '</script>')
 
-    q_initial_props = loads(text)
+    q_initial_props = loads(json_string)
     q_locales = q_initial_props.get('locales')
     eng_tag_list = set()
 

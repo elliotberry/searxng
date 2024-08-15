@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
-# pyright: basic
 """Utility functions for the engines
 
 """
+
+from __future__ import annotations
+
 import re
 import importlib
 import importlib.util
@@ -20,7 +21,7 @@ from urllib.parse import urljoin, urlparse
 from markdown_it import MarkdownIt
 
 from lxml import html
-from lxml.etree import ElementBase, XPath, XPathError, XPathSyntaxError, _ElementStringResult, _ElementUnicodeResult
+from lxml.etree import ElementBase, XPath, XPathError, XPathSyntaxError
 
 from searx import settings
 from searx.data import USER_AGENTS, data_dir
@@ -43,19 +44,10 @@ _JS_QUOTE_KEYS_RE = re.compile(r'([\{\s,])(\w+)(:)')
 _JS_VOID_RE = re.compile(r'void\s+[0-9]+|void\s*\([0-9]+\)')
 _JS_DECIMAL_RE = re.compile(r":\s*\.")
 
-_STORAGE_UNIT_VALUE: Dict[str, int] = {
-    'TB': 1024 * 1024 * 1024 * 1024,
-    'GB': 1024 * 1024 * 1024,
-    'MB': 1024 * 1024,
-    'TiB': 1000 * 1000 * 1000 * 1000,
-    'MiB': 1000 * 1000,
-    'KiB': 1000,
-}
-
 _XPATH_CACHE: Dict[str, XPath] = {}
 _LANG_TO_LC_CACHE: Dict[str, Dict[str, str]] = {}
 
-_FASTTEXT_MODEL: Optional["fasttext.FastText._FastText"] = None
+_FASTTEXT_MODEL: Optional["fasttext.FastText._FastText"] = None  # type: ignore
 """fasttext model to predict laguage of a search term"""
 
 SEARCH_LANGUAGE_CODES = frozenset([searxng_locale[0].split('-')[0] for searxng_locale in sxng_locales])
@@ -218,7 +210,7 @@ def extract_text(xpath_results, allow_none: bool = False) -> Optional[str]:
         text: str = html.tostring(xpath_results, encoding='unicode', method='text', with_tail=False)
         text = text.strip().replace('\n', ' ')
         return ' '.join(text.split())
-    if isinstance(xpath_results, (_ElementStringResult, _ElementUnicodeResult, str, Number, bool)):
+    if isinstance(xpath_results, (str, Number, bool)):
         return str(xpath_results)
     if xpath_results is None and allow_none:
         return None
@@ -330,29 +322,6 @@ def dict_subset(dictionary: MutableMapping, properties: Set[str]) -> Dict:
     return {k: dictionary[k] for k in properties if k in dictionary}
 
 
-def get_torrent_size(filesize: str, filesize_multiplier: str) -> Optional[int]:
-    """
-
-    Args:
-        * filesize (str): size
-        * filesize_multiplier (str): TB, GB, .... TiB, GiB...
-
-    Returns:
-        * int: number of bytes
-
-    Example:
-        >>> get_torrent_size('5', 'GB')
-        5368709120
-        >>> get_torrent_size('3.14', 'MiB')
-        3140000
-    """
-    try:
-        multiplier = _STORAGE_UNIT_VALUE.get(filesize_multiplier, 1)
-        return int(float(filesize) * multiplier)
-    except ValueError:
-        return None
-
-
 def humanize_bytes(size, precision=2):
     """Determine the *human readable* value of bytes on 1024 base (1KB=1024B)."""
     s = ['B ', 'KB', 'MB', 'GB', 'TB']
@@ -365,11 +334,52 @@ def humanize_bytes(size, precision=2):
     return "%.*f %s" % (precision, size, s[p])
 
 
+def humanize_number(size, precision=0):
+    """Determine the *human readable* value of a decimal number."""
+    s = ['', 'K', 'M', 'B', 'T']
+
+    x = len(s)
+    p = 0
+    while size > 1000 and p < x:
+        p += 1
+        size = size / 1000.0
+    return "%.*f%s" % (precision, size, s[p])
+
+
 def convert_str_to_int(number_str: str) -> int:
     """Convert number_str to int or 0 if number_str is not a number."""
     if number_str.isdigit():
         return int(number_str)
     return 0
+
+
+def extr(txt: str, begin: str, end: str, default: str = ""):
+    """Extract the string between ``begin`` and ``end`` from ``txt``
+
+    :param txt:     String to search in
+    :param begin:   First string to be searched for
+    :param end:     Second string to be searched for after ``begin``
+    :param default: Default value if one of ``begin`` or ``end`` is not
+                    found.  Defaults to an empty string.
+    :return: The string between the two search-strings ``begin`` and ``end``.
+             If at least one of ``begin`` or ``end`` is not found, the value of
+             ``default`` is returned.
+
+    Examples:
+      >>> extr("abcde", "a", "e")
+      "bcd"
+      >>> extr("abcde", "a", "z", deafult="nothing")
+      "nothing"
+
+    """
+
+    # From https://github.com/mikf/gallery-dl/blob/master/gallery_dl/text.py#L129
+
+    try:
+        first = txt.index(begin) + len(begin)
+        return txt[first : txt.index(end, first)]
+    except ValueError:
+        return default
 
 
 def int_or_zero(num: Union[List[str], str]) -> int:
@@ -594,7 +604,7 @@ def eval_xpath_getindex(elements: ElementBase, xpath_spec: XPathSpecType, index:
     return default
 
 
-def _get_fasttext_model() -> "fasttext.FastText._FastText":
+def _get_fasttext_model() -> "fasttext.FastText._FastText":  # type: ignore
     global _FASTTEXT_MODEL  # pylint: disable=global-statement
     if _FASTTEXT_MODEL is None:
         import fasttext  # pylint: disable=import-outside-toplevel

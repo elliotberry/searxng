@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
 """This module implements functions needed for the autocompleter.
 
 """
 # pylint: disable=use-dict-literal
 
 import json
+import html
 from urllib.parse import urlencode, quote_plus
 
 import lxml
@@ -163,7 +163,7 @@ def stract(query, _lang):
     if not resp.ok:
         return []
 
-    return [suggestion['raw'] for suggestion in resp.json()]
+    return [html.unescape(suggestion['raw']) for suggestion in resp.json()]
 
 
 def startpage(query, sxng_locale):

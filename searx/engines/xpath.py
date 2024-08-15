@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
 """The XPath engine is a *generic* engine with which it is possible to configure
 engines in the settings.
 
@@ -136,7 +135,7 @@ title_xpath = None
 '''`XPath selector`_ of result's ``title``.'''
 
 thumbnail_xpath = False
-'''`XPath selector`_ of result's ``img_src``.'''
+'''`XPath selector`_ of result's ``thumbnail``.'''
 
 suggestion_xpath = ''
 '''`XPath selector`_ of result's ``suggestion``.'''
@@ -267,7 +266,7 @@ def response(resp):  # pylint: disable=too-many-branches
             if thumbnail_xpath:
                 thumbnail_xpath_result = eval_xpath_list(result, thumbnail_xpath)
                 if len(thumbnail_xpath_result) > 0:
-                    tmp_result['img_src'] = extract_url(thumbnail_xpath_result, search_url)
+                    tmp_result['thumbnail'] = extract_url(thumbnail_xpath_result, search_url)
 
             # add alternative cached url if available
             if cached_xpath:

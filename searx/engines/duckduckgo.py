@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
 """
 DuckDuckGo Lite
 ~~~~~~~~~~~~~~~
@@ -25,6 +24,7 @@ from searx.utils import (
 from searx.network import get  # see https://github.com/searxng/searxng/issues/762
 from searx import redisdb
 from searx.enginelib.traits import EngineTraits
+from searx.utils import extr
 
 if TYPE_CHECKING:
     import logging
@@ -65,7 +65,7 @@ def cache_vqd(query, value):
     c = redisdb.client()
     if c:
         logger.debug("cache vqd value: %s", value)
-        key = 'SearXNG_ddg_vqd' + redislib.secret_hash(query)
+        key = 'SearXNG_ddg_web_vqd' + redislib.secret_hash(query)
         c.set(key, value, ex=600)
 
 
@@ -105,29 +105,27 @@ def get_vqd(query):
     - DuckDuckGo News: ``https://duckduckgo.com/news.js??q=...&vqd=...``
 
     """
-    value = ''
+    value = None
     c = redisdb.client()
     if c:
-        key = 'SearXNG_ddg_vqd' + redislib.secret_hash(query)
+        key = 'SearXNG_ddg_web_vqd' + redislib.secret_hash(query)
         value = c.get(key)
         if value or value == b'':
             value = value.decode('utf-8')
             logger.debug("re-use cached vqd value: %s", value)
             return value
 
-    query_url = 'https://lite.duckduckgo.com/lite/?{args}'.format(args=urlencode({'q': query}))
+    query_url = 'https://duckduckgo.com/?' + urlencode({'q': query})
     res = get(query_url)
     doc = lxml.html.fromstring(res.text)
-    value = doc.xpath("//input[@name='vqd']/@value")
-    if value:
-        value = value[0]
-    else:
-        # Some search terms do not have results and therefore no vqd value.  If
-        # no vqd value can be determined for the search term, an empty string is
-        # chached.
-        value = ''
+    for script in doc.xpath("//script[@type='text/javascript']"):
+        script = script.text
+        if 'vqd="' in script:
+            value = extr(script, 'vqd="', '"')
+            break
     logger.debug("new vqd value: '%s'", value)
-    cache_vqd(query, value)
+    if value is not None:
+        cache_vqd(query, value)
     return value
 
 
@@ -224,17 +222,10 @@ ddg_lang_map = {
 }
 
 
-def request(query, params):
-
-    # request needs a vqd argument
-    vqd = get_vqd(query)
-    if not vqd:
-        # some search terms do not have results and therefore no vqd value
-        params['url'] = None
-        return params
-
+def quote_ddg_bangs(query):
     # quote ddg bangs
     query_parts = []
+
     # for val in re.split(r'(\s+)', query):
     for val in re.split(r'(\s+)', query):
         if not val.strip():
@@ -242,7 +233,15 @@ def request(query, params):
         if val.startswith('!') and external_bang.get_node(external_bang.EXTERNAL_BANGS, val[1:]):
             val = f"'{val}'"
         query_parts.append(val)
-    query = ' '.join(query_parts)
+    return ' '.join(query_parts)
+
+
+def request(query, params):
+
+    query = quote_ddg_bangs(query)
+
+    # request needs a vqd argument
+    vqd = get_vqd(query)
 
     eng_region = traits.get_region(params['searxng_locale'], traits.all_locale)
     # eng_lang = get_ddg_lang(traits, params['searxng_locale'])
@@ -260,14 +259,14 @@ def request(query, params):
 
     # initial page does not have an offset
     if params['pageno'] == 2:
-        # second page does have an offset of 30
-        offset = (params['pageno'] - 1) * 30
+        # second page does have an offset of 20
+        offset = (params['pageno'] - 1) * 20
         params['data']['s'] = offset
         params['data']['dc'] = offset + 1
 
     elif params['pageno'] > 2:
-        # third and following pages do have an offset of 30 + n*50
-        offset = 30 + (params['pageno'] - 2) * 50
+        # third and following pages do have an offset of 20 + n*50
+        offset = 20 + (params['pageno'] - 2) * 50
         params['data']['s'] = offset
         params['data']['dc'] = offset + 1
 
@@ -322,16 +321,25 @@ def response(resp):
             form_data['o'] = eval_xpath(form, '//input[@name="o"]/@value')[0]
             logger.debug('form_data: %s', form_data)
 
-            value = eval_xpath(form, '//input[@name="vqd"]/@value')[0]
-            query = resp.search_params['data']['q']
-            cache_vqd(query, value)
-
     tr_rows = eval_xpath(result_table, './/tr')
     # In the last <tr> is the form of the 'previous/next page' links
     tr_rows = tr_rows[:-1]
 
     len_tr_rows = len(tr_rows)
     offset = 0
+
+    zero_click_info_xpath = '//html/body/form/div/table[2]/tr[2]/td/text()'
+    zero_click = extract_text(eval_xpath(doc, zero_click_info_xpath)).strip()
+
+    if zero_click and "Your IP address is" not in zero_click:
+        current_query = resp.search_params["data"].get("q")
+
+        results.append(
+            {
+                'answer': zero_click,
+                'url': "https://duckduckgo.com/?" + urlencode({"q": current_query}),
+            }
+        )
 
     while len_tr_rows >= offset + 4:
 
@@ -384,22 +392,22 @@ def fetch_traits(engine_traits: EngineTraits):
     SearXNG's locale.
 
     """
-    # pylint: disable=too-many-branches, too-many-statements
+    # pylint: disable=too-many-branches, too-many-statements, disable=import-outside-toplevel
+    from searx.utils import js_variable_to_python
+
     # fetch regions
 
     engine_traits.all_locale = 'wt-wt'
 
-    # updated from u588 to u661 / should be updated automatically?
-    resp = get('https://duckduckgo.com/util/u661.js')
+    # updated from u661.js to u.7669f071a13a7daa57cb / should be updated automatically?
+    resp = get('https://duckduckgo.com/dist/util/u.7669f071a13a7daa57cb.js')
 
     if not resp.ok:  # type: ignore
         print("ERROR: response from DuckDuckGo is not OK.")
 
-    pos = resp.text.find('regions:{') + 8  # type: ignore
-    js_code = resp.text[pos:]  # type: ignore
-    pos = js_code.find('}') + 1
-    regions = json.loads(js_code[:pos])
+    js_code = extr(resp.text, 'regions:', ',snippetLengths')
 
+    regions = json.loads(js_code)
     for eng_tag, name in regions.items():
 
         if eng_tag == 'wt-wt':
@@ -431,12 +439,9 @@ def fetch_traits(engine_traits: EngineTraits):
 
     engine_traits.custom['lang_region'] = {}
 
-    pos = resp.text.find('languages:{') + 10  # type: ignore
-    js_code = resp.text[pos:]  # type: ignore
-    pos = js_code.find('}') + 1
-    js_code = '{"' + js_code[1:pos].replace(':', '":').replace(',', ',"')
-    languages = json.loads(js_code)
+    js_code = extr(resp.text, 'languages:', ',regions')
 
+    languages = js_variable_to_python(js_code)
     for eng_lang, name in languages.items():
 
         if eng_lang == 'wt_WT':

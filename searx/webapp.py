@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
-# pyright: basic
 """WebbApp
 
 """
@@ -63,7 +61,7 @@ from searx.botdetection import link_token
 from searx.data import ENGINE_DESCRIPTIONS
 from searx.results import Timing
 from searx.settings_defaults import OUTPUT_FORMATS
-from searx.settings_loader import get_default_settings_path
+from searx.settings_loader import DEFAULT_SETTINGS_FILE
 from searx.exceptions import SearxParameterException
 from searx.engines import (
     DEFAULT_CATEGORY,
@@ -278,8 +276,8 @@ def custom_url_for(endpoint: str, **values):
             suffix = "?" + file_hash
     if endpoint == 'info' and 'locale' not in values:
         locale = request.preferences.get_value('locale')
-        if _INFO_PAGES.get_page(values['pagename'], locale) is None:
-            locale = _INFO_PAGES.locale_default
+        if infopage.INFO_PAGES.get_page(values['pagename'], locale) is None:
+            locale = infopage.INFO_PAGES.locale_default
         values['locale'] = locale
     return url_for(endpoint, **values) + suffix
 
@@ -806,14 +804,14 @@ def about():
 @app.route('/info/<locale>/<pagename>', methods=['GET'])
 def info(pagename, locale):
     """Render page of online user documentation"""
-    page = _INFO_PAGES.get_page(pagename, locale)
+    page = infopage.INFO_PAGES.get_page(pagename, locale)
     if page is None:
         flask.abort(404)
 
     user_locale = request.preferences.get_value('locale')
     return render(
         'info.html',
-        all_pages=_INFO_PAGES.iter_pages(user_locale, fallback_to_default=True),
+        all_pages=infopage.INFO_PAGES.iter_pages(user_locale, fallback_to_default=True),
         active_page=page,
         active_pagename=pagename,
     )
@@ -1163,6 +1161,21 @@ def stats():
                 reliability_order = 1 - reliability_order
         return (reliability_order, key, engine_stat['name'])
 
+    technical_report = []
+    for error in engine_reliabilities.get(selected_engine_name, {}).get('errors', []):
+        technical_report.append(
+            f"\
+            Error: {error['exception_classname'] or error['log_message']} \
+            Parameters: {error['log_parameters']} \
+            File name: {error['filename'] }:{ error['line_no'] } \
+            Error Function: {error['function']} \
+            Code: {error['code']} \
+            ".replace(
+                ' ' * 12, ''
+            ).strip()
+        )
+    technical_report = ' '.join(technical_report)
+
     engine_stats['time'] = sorted(engine_stats['time'], reverse=reverse, key=get_key)
     return render(
         # fmt: off
@@ -1172,6 +1185,7 @@ def stats():
         engine_reliabilities = engine_reliabilities,
         selected_engine_name = selected_engine_name,
         searx_git_branch = GIT_BRANCH,
+        technical_report = technical_report,
         # fmt: on
     )
 
@@ -1319,7 +1333,6 @@ werkzeug_reloader = flask_run_development or (searx_debug and __name__ == "__mai
 # initialize the engines except on the first run of the werkzeug server.
 if not werkzeug_reloader or (werkzeug_reloader and os.environ.get("WERKZEUG_RUN_MAIN") == "true"):
     locales_initialize()
-    _INFO_PAGES = infopage.InfoPageSet()
     redis_initialize()
     plugin_initialize(app)
     search_initialize(enable_checker=True, check_network=True, enable_metrics=settings['general']['enable_metrics'])
@@ -1334,7 +1347,7 @@ def run():
         port=settings['server']['port'],
         host=settings['server']['bind_address'],
         threaded=True,
-        extra_files=[get_default_settings_path()],
+        extra_files=[DEFAULT_SETTINGS_FILE],
     )
 
 

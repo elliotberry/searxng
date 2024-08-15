@@ -339,6 +339,8 @@ type.
    content                   *(not implemented yet)*
    publishedDate             :py:class:`datetime.datetime`, time of publish
    thumbnail                 string, url to a small-preview image
+   length                    :py:class:`datetime.timedelta`, duration of result
+   views                     string, view count in humanized number format
    ========================= =====================================================
 
 
@@ -563,3 +565,7 @@ type.
    * - source_code_url
      - :py:class:`str`
      - the location of the project's source code
+
+   * - links
+     - :py:class:`dict`
+     - additional links in the form of ``{'link_name': 'http://example.com'}``

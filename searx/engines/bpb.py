@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# lint: pylint
 """BPB refers to ``Bundeszentrale für poltische Bildung``, which is a German
 governmental institution aiming to reduce misinformation by providing resources
 about politics and history.
@@ -41,9 +40,9 @@ def response(resp):
     json_resp = resp.json()
 
     for result in json_resp['teaser']:
-        img_src = None
+        thumbnail = None
         if result['teaser']['image']:
-            img_src = base_url + result['teaser']['image']['sources'][-1]['url']
+            thumbnail = base_url + result['teaser']['image']['sources'][-1]['url']
 
         metadata = result['extension']['overline']
         authors = ', '.join(author['name'] for author in result['extension'].get('authors', []))
@@ -59,7 +58,7 @@ def response(resp):
                 'url': base_url + result['teaser']['link']['url'],
                 'title': result['teaser']['title'],
                 'content': result['teaser']['text'],
-                'img_src': img_src,
+                'thumbnail': thumbnail,
                 'publishedDate': publishedDate,
                 'metadata': metadata,
             }

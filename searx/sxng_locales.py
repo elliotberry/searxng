@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''List of SearXNG's locale codes.
 
 .. hint::
@@ -56,6 +56,7 @@ sxng_locales = (
     ('fr-CA', 'Français', 'Canada', 'French', '\U0001f1e8\U0001f1e6'),
     ('fr-CH', 'Français', 'Suisse', 'French', '\U0001f1e8\U0001f1ed'),
     ('fr-FR', 'Français', 'France', 'French', '\U0001f1eb\U0001f1f7'),
+    ('gl', 'Galego', '', 'Galician', '\U0001f310'),
     ('he', 'עברית', '', 'Hebrew', '\U0001f1ee\U0001f1f1'),
     ('hi', 'हिन्दी', '', 'Hindi', '\U0001f310'),
     ('hr', 'Hrvatski', '', 'Croatian', '\U0001f310'),
@@ -75,7 +76,6 @@ sxng_locales = (
     ('lv', 'Latviešu', '', 'Latvian', '\U0001f310'),
     ('ml', 'മലയാളം', '', 'Malayalam', '\U0001f310'),
     ('mr', 'मराठी', '', 'Marathi', '\U0001f310'),
-    ('ms', 'Melayu', '', 'Malay', '\U0001f310'),
     ('nb', 'Norsk Bokmål', '', 'Norwegian Bokmål', '\U0001f310'),
     ('nb-NO', 'Norsk Bokmål', 'Norge', 'Norwegian Bokmål', '\U0001f1f3\U0001f1f4'),
     ('nl', 'Nederlands', '', 'Dutch', '\U0001f310'),
