@@ -16,7 +16,12 @@ dist/
 local/
 gh-pages/
 *.egg-info/
-
+searxng-data/*
+searxng-data
+.DS_Store
+*.log
+redis-cache/
+redis-cache
 /package-lock.json
 /node_modules/
 
