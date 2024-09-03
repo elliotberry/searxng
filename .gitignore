@@ -19,6 +19,7 @@ gh-pages/
 searxng-data/*
 searxng-data
 .DS_Store
+.ds_store
 *.log
 redis-cache/
 redis-cache

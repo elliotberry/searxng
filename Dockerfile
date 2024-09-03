@@ -1,14 +1,34 @@
-FROM alpine:3.20
-ENTRYPOINT ["/sbin/tini","--","/usr/local/searxng/dockerfiles/docker-entrypoint.sh"]
-EXPOSE 8080
-VOLUME /etc/searxng
+# Use multi-stage build to optimize final image size
+# Stage 1: Build environment
+FROM alpine:3.19.1 as builder
 
-ARG SEARXNG_GID=977
-ARG SEARXNG_UID=977
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    python3 \
+    python3-dev \
+    py3-pip \
+    libffi-dev \
+    libxslt-dev \
+    libxml2-dev \
+    openssl-dev \
+    tar \
+    git
+RUN echo $(python3 -c "import site; print(site.getsitepackages()[0])")
+# Install Python and pip, and find the site-packages path
+RUN PYTHON_SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])") && \
+    echo "Python site-packages path: ${PYTHON_SITE_PACKAGES}" > /site_packages_path.txt
 
-RUN addgroup -g ${SEARXNG_GID} searxng && \
-    adduser -u ${SEARXNG_UID} -D -h /usr/local/searxng -s /bin/sh -G searxng searxng
+# Copy only the requirements file first to leverage Docker cache
+COPY requirements.txt /requirements.txt
+RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r /requirements.txt
 
+# Stage 2: Runtime environment
+FROM alpine:3.19.1
+
+# Environment variables
 ENV INSTANCE_NAME=searxng \
     AUTOCOMPLETE= \
     BASE_URL= \
@@ -17,22 +37,16 @@ ENV INSTANCE_NAME=searxng \
     SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml \
     UWSGI_SETTINGS_PATH=/etc/searxng/uwsgi.ini
 
-WORKDIR /usr/local/searxng
+# Create user and group for searxng
+ARG SEARXNG_GID=977
+ARG SEARXNG_UID=977
+RUN addgroup -g ${SEARXNG_GID} searxng && \
+    adduser -u ${SEARXNG_UID} -D -h /usr/local/searxng -s /bin/sh -G searxng searxng
 
-COPY requirements.txt ./requirements.txt
-
-RUN apk add --no-cache -t build-dependencies \
-    build-base \
-    py3-setuptools \
-    python3-dev \
-    libffi-dev \
-    libxslt-dev \
-    libxml2-dev \
-    openssl-dev \
-    tar \
-    git \
- && apk add --no-cache \
+# Install runtime dependencies
+RUN apk add --no-cache \
     ca-certificates \
+    su-exec \
     python3 \
     py3-pip \
     libxml2 \
@@ -41,30 +55,33 @@ RUN apk add --no-cache -t build-dependencies \
     tini \
     uwsgi \
     uwsgi-python3 \
-    brotli \
- && pip3 install --break-system-packages --no-cache -r requirements.txt \
- && apk del build-dependencies \
- && rm -rf /root/.cache
+    brotli
 
+# Set work directory
+WORKDIR /usr/local/searxng
+
+# Copy the Python site-packages path from the builder
+RUN mkdir -p /usr/lib/python3.11/site-packages
+# Copy Python site-packages from builder to runtime environment
+COPY --from=builder /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
+
+# Copy application code with correct permissions
 COPY --chown=searxng:searxng dockerfiles ./dockerfiles
 COPY --chown=searxng:searxng searx ./searx
 
-ARG TIMESTAMP_SETTINGS=0
-ARG TIMESTAMP_UWSGI=0
-ARG VERSION_GITCOMMIT=unknown
+# Precompile Python files
+RUN su searxng -c "python3 -m compileall -q searx"
 
-RUN su searxng -c "/usr/bin/python3 -m compileall -q searx" \
- && touch -c --date=@${TIMESTAMP_SETTINGS} searx/settings.yml \
- && touch -c --date=@${TIMESTAMP_UWSGI} dockerfiles/uwsgi.ini \
- && find /usr/local/searxng/searx/static -a \( -name '*.html' -o -name '*.css' -o -name '*.js' \
-    -o -name '*.svg' -o -name '*.ttf' -o -name '*.eot' \) \
-    -type f -exec gzip -9 -k {} \+ -exec brotli --best {} \+
+# Set entrypoint, expose port and define volume
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/searxng/dockerfiles/docker-entrypoint.sh"]
+EXPOSE 8080
+VOLUME /etc/searxng
 
-# Keep these arguments at the end to prevent redundant layer rebuilds
-ARG LABEL_DATE=
+# Metadata
 ARG GIT_URL=unknown
 ARG SEARXNG_GIT_VERSION=unknown
 ARG SEARXNG_DOCKER_TAG=unknown
+ARG LABEL_DATE=
 ARG LABEL_VCS_REF=
 ARG LABEL_VCS_URL=
 LABEL maintainer="searxng <${GIT_URL}>" \

@@ -20,7 +20,7 @@ services:
     image: searxng-for-cats
     build:
       context: .
-      dockerfile: Dockerfile2
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
      - "8888:8080"
